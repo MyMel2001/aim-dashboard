@@ -154,107 +154,115 @@
   </div>
 
   <script>
-    const API_BASE = 'https://www.sparksammy.com/aim-proxy/index.php?endpoint=';
-    let currentUser = null;
+const API_BASE = 'https://www.sparksammy.com/aim-proxy/index.php?endpoint=';
+let currentUser = null;
 
-    const authSection = document.getElementById('auth-section');
-    const protectedSection = document.getElementById('protected-section');
-    const sessionControls = document.getElementById('session-controls');
-    const activeUserEl = document.getElementById('active-user');
-    const outputEl = document.getElementById('output');
+const authSection = document.getElementById('auth-section');
+const protectedSection = document.getElementById('protected-section');
+const sessionControls = document.getElementById('session-controls');
+const activeUserEl = document.getElementById('active-user');
+const outputEl = document.getElementById('output');
 
-    function updateUI() {
-      if (currentUser) {
-        authSection.classList.add('hidden');
-        protectedSection.classList.remove('hidden');
-        sessionControls.classList.remove('hidden');
-        activeUserEl.textContent = currentUser;
-      } else {
-        authSection.classList.remove('hidden');
-        protectedSection.classList.add('hidden');
-        sessionControls.classList.add('hidden');
-        activeUserEl.textContent = '';
-      }
-    }
-
-    function logResponse(endpoint, method, status, data) {
-      const timestamp = new Date().toLocaleTimeString();
-      outputEl.textContent = `[${timestamp}] ${method} ${endpoint} → Status: ${status}\nResponse: ${JSON.stringify(data, null, 2)}\n\n` + outputEl.textContent;
-    }
-
-  async function sendRequest(endpoint, method, payload) {
-    try {
-      // Passes the actual endpoint path as a query parameter (e.g., http://localhost:8000/proxy.php?endpoint=/user)
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        method: method,
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-      console.log(data);
-    } catch (err) {
-      console.error('Proxy Error:', err);
-    }
+function updateUI() {
+  if (currentUser) {
+    authSection.classList.add('hidden');
+    protectedSection.classList.remove('hidden');
+    sessionControls.classList.remove('hidden');
+    activeUserEl.textContent = currentUser;
+  } else {
+    authSection.classList.remove('hidden');
+    protectedSection.classList.add('hidden');
+    sessionControls.classList.add('hidden');
+    activeUserEl.textContent = '';
   }
+}
 
-    // Auth Form (Sets session state on success)
-    document.getElementById('auth-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const screenName = document.getElementById('auth-screenname').value;
-      const res = await sendRequest('/user', 'POST', {
-        screen_name: screenName,
-        password: document.getElementById('auth-password').value
-      });
+function logResponse(endpoint, method, status, data) {
+  const timestamp = new Date().toLocaleTimeString();
+  outputEl.textContent = `[${timestamp}] ${method} ${endpoint} → Status: ${status}\nResponse: ${JSON.stringify(data, null, 2)}\n\n` + outputEl.textContent;
+}
 
-      if (res.ok) {
-        currentUser = screenName;
-        document.getElementById('auth-form').reset();
-        updateUI();
-      }
+async function sendRequest(endpoint, method, payload) {
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload)
     });
 
-    // Change Password Form (Uses active session username)
-    document.getElementById('password-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      await sendRequest('/user/password', 'PUT', {
-        screen_name: currentUser,
-        password: document.getElementById('pwd-newpassword').value
-      });
-      document.getElementById('password-form').reset();
-    });
+    const data = await response.json();
+    logResponse(endpoint, method, response.status, data);
 
-    // Create Room Form
-    document.getElementById('room-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      await sendRequest('/chat/room/public', 'POST', {
-        name: document.getElementById('room-name').value
-      });
-      document.getElementById('room-form').reset();
-    });
+    // Return status check handling 200 or 201 explicitly
+    return {
+      ok: response.status === 200 || response.status === 201,
+      status: response.status,
+      data: data
+    };
+  } catch (err) {
+    console.error('Proxy Error:', err);
+    logResponse(endpoint, method, 'ERROR', { error: err.message });
+    return { ok: false, status: 0, data: null };
+  }
+}
 
-    // Delete Account Form (Clears session on success)
-    document.getElementById('delete-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const res = await sendRequest('/user', 'DELETE', {
-        screen_name: currentUser
-      });
+// Auth Form (Sets session state on success)
+document.getElementById('auth-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const screenName = document.getElementById('auth-screenname').value;
+  const res = await sendRequest('/user', 'POST', {
+    screen_name: screenName,
+    password: document.getElementById('auth-password').value
+  });
 
-      if (res.ok) {
-        currentUser = null;
-        updateUI();
-      }
-    });
+  if (res && res.ok) {
+    currentUser = screenName;
+    document.getElementById('auth-form').reset();
+    updateUI();
+  }
+});
 
-    // Logout Action
-    document.getElementById('logout-btn').addEventListener('click', () => {
-      currentUser = null;
-      updateUI();
-      logResponse('Client', 'LOGOUT', '200', { message: 'Session cleared.' });
-    });
+// Change Password Form (Uses active session username)
+document.getElementById('password-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await sendRequest('/user/password', 'PUT', {
+    screen_name: currentUser,
+    password: document.getElementById('pwd-newpassword').value
+  });
+  document.getElementById('password-form').reset();
+});
+
+// Create Room Form
+document.getElementById('room-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  await sendRequest('/chat/room/public', 'POST', {
+    name: document.getElementById('room-name').value
+  });
+  document.getElementById('room-form').reset();
+});
+
+// Delete Account Form (Clears session on success)
+document.getElementById('delete-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await sendRequest('/user', 'DELETE', {
+    screen_name: currentUser
+  });
+
+  if (res && res.ok) {
+    currentUser = null;
+    updateUI();
+  }
+});
+
+// Logout Action
+document.getElementById('logout-btn').addEventListener('click', () => {
+  currentUser = null;
+  updateUI();
+  logResponse('Client', 'LOGOUT', '200', { message: 'Session cleared.' });
+});
   </script>
 </body>
 </html>
