@@ -154,7 +154,7 @@
   </div>
 
   <script>
-    const API_BASE = 'https://aim-api.nodemixaholic.com';
+    const API_BASE = 'https://www.sparksammy.com/aim-proxy/index.php?endpoint=';
     let currentUser = null;
 
     const authSection = document.getElementById('auth-section');
@@ -182,32 +182,24 @@
       outputEl.textContent = `[${timestamp}] ${method} ${endpoint} → Status: ${status}\nResponse: ${JSON.stringify(data, null, 2)}\n\n` + outputEl.textContent;
     }
 
-    async function sendRequest(endpoint, method, payload) {
-      try {
-        const response = await fetch(`${API_BASE}${endpoint}`, {
-          method: method,
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify(payload)
-        });
+  async function sendRequest(endpoint, method, payload) {
+    try {
+      // Passes the actual endpoint path as a query parameter (e.g., http://localhost:8000/proxy.php?endpoint=/user)
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
 
-        let data;
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          data = await response.json();
-        } else {
-          data = await response.text();
-        }
-
-        logResponse(endpoint, method, response.status, data);
-        return { ok: response.ok, status: response.status, data };
-      } catch (err) {
-        logResponse(endpoint, method, 'ERROR', err.message);
-        return { ok: false, error: err.message };
-      }
+      const data = await response.json();
+      console.log(data);
+    } catch (err) {
+      console.error('Proxy Error:', err);
     }
+  }
 
     // Auth Form (Sets session state on success)
     document.getElementById('auth-form').addEventListener('submit', async (e) => {
