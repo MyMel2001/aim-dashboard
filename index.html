@@ -208,7 +208,7 @@ async function sendRequest(endpoint, method, payload) {
     logResponse(endpoint, method, response.status, data);
 
     return {
-      ok: response.status === 200 || response.status === 201 || response.text() == 'user already exists\n' ,
+      ok: response.status === 200 || response.status === 201 || rawText == "user already exists\n" ,
       status: response.status,
       data: data
     };
