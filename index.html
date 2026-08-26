@@ -21,6 +21,12 @@
       margin: 2rem auto;
       padding: 0 1rem;
     }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
     .card {
       background: var(--card-bg);
       border: 1px solid var(--border);
@@ -29,10 +35,11 @@
       margin-bottom: 1.5rem;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
-    h2 { margin-top: 0; font-size: 1.25rem; }
-    .form-group {
-      margin-bottom: 1rem;
+    .hidden {
+      display: none !important;
     }
+    h2 { margin-top: 0; font-size: 1.25rem; }
+    .form-group { margin-bottom: 1rem; }
     label {
       display: block;
       font-size: 0.875rem;
@@ -57,6 +64,13 @@
     }
     button.danger { background: var(--danger); }
     button:hover { opacity: 0.9; }
+    .user-badge {
+      font-size: 0.9rem;
+      background: #e2e8f0;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      margin-right: 0.5rem;
+    }
     .log-container {
       background: #0f172a;
       color: #38bdf8;
@@ -71,11 +85,17 @@
 </head>
 <body>
 
-  <h1>API Dashboard</h1>
+  <div class="header">
+    <h1>AIM Dashboard</h1>
+    <div id="session-controls" class="hidden">
+      <span class="user-badge">Logged in: <strong id="active-user"></strong></span>
+      <button id="logout-btn" class="danger">Log Out</button>
+    </div>
+  </div>
 
-  <!-- Create / Login User -->
-  <div class="card">
-    <h2>Create User / Login</h2>
+  <!-- Authentication Section (Visible when logged OUT) -->
+  <div id="auth-section" class="card">
+    <h2>Login / Register</h2>
     <form id="auth-form">
       <div class="form-group">
         <label for="auth-screenname">Screen Name</label>
@@ -89,44 +109,42 @@
     </form>
   </div>
 
-  <!-- Change Password -->
-  <div class="card">
-    <h2>Change Password</h2>
-    <form id="password-form">
-      <div class="form-group">
-        <label for="pwd-screenname">Screen Name</label>
-        <input type="text" id="pwd-screenname" required />
-      </div>
-      <div class="form-group">
-        <label for="pwd-newpassword">New Password</label>
-        <input type="password" id="pwd-newpassword" required />
-      </div>
-      <button type="submit">Update Password</button>
-    </form>
-  </div>
+  <!-- Protected Container (Visible ONLY when logged IN) -->
+  <div id="protected-section" class="hidden">
 
-  <!-- Create Public Chat Room -->
-  <div class="card">
-    <h2>Create Public Chat Room</h2>
-    <form id="room-form">
-      <div class="form-group">
-        <label for="room-name">Room Name</label>
-        <input type="text" id="room-name" required />
-      </div>
-      <button type="submit">Create Room</button>
-    </form>
-  </div>
+    <!-- Change Password -->
+    <div class="card">
+      <h2>Change Password</h2>
+      <form id="password-form">
+        <div class="form-group">
+          <label for="pwd-newpassword">New Password</label>
+          <input type="password" id="pwd-newpassword" required />
+        </div>
+        <button type="submit">Update Password</button>
+      </form>
+    </div>
 
-  <!-- Delete User -->
-  <div class="card">
-    <h2>Delete User</h2>
-    <form id="delete-form">
-      <div class="form-group">
-        <label for="del-screenname">Screen Name</label>
-        <input type="text" id="del-screenname" required />
-      </div>
-      <button type="submit" class="danger">Delete User Account</button>
-    </form>
+    <!-- Create Public Chat Room -->
+    <div class="card">
+      <h2>Create Public Chat Room</h2>
+      <form id="room-form">
+        <div class="form-group">
+          <label for="room-name">Room Name</label>
+          <input type="text" id="room-name" required />
+        </div>
+        <button type="submit">Create Room</button>
+      </form>
+    </div>
+
+    <!-- Delete User -->
+    <div class="card">
+      <h2>Delete Account</h2>
+      <form id="delete-form">
+        <p style="font-size: 0.875rem; color: #64748b;">This action will permanently delete your account.</p>
+        <button type="submit" class="danger">Delete User Account</button>
+      </form>
+    </div>
+
   </div>
 
   <!-- Response Log Console -->
@@ -137,7 +155,27 @@
 
   <script>
     const API_BASE = 'https://aim-api.nodemixaholic.com';
+    let currentUser = null;
+
+    const authSection = document.getElementById('auth-section');
+    const protectedSection = document.getElementById('protected-section');
+    const sessionControls = document.getElementById('session-controls');
+    const activeUserEl = document.getElementById('active-user');
     const outputEl = document.getElementById('output');
+
+    function updateUI() {
+      if (currentUser) {
+        authSection.classList.add('hidden');
+        protectedSection.classList.remove('hidden');
+        sessionControls.classList.remove('hidden');
+        activeUserEl.textContent = currentUser;
+      } else {
+        authSection.classList.remove('hidden');
+        protectedSection.classList.add('hidden');
+        sessionControls.classList.add('hidden');
+        activeUserEl.textContent = '';
+      }
+    }
 
     function logResponse(endpoint, method, status, data) {
       const timestamp = new Date().toLocaleTimeString();
@@ -151,7 +189,7 @@
           headers: {
             'Content-Type': 'application/json'
           },
-          credentials: 'include', // Ensures session cookies are sent for protected endpoints
+          credentials: 'include',
           body: JSON.stringify(payload)
         });
 
@@ -164,40 +202,66 @@
         }
 
         logResponse(endpoint, method, response.status, data);
+        return { ok: response.ok, status: response.status, data };
       } catch (err) {
         logResponse(endpoint, method, 'ERROR', err.message);
+        return { ok: false, error: err.message };
       }
     }
 
-    // Form Event Listeners
-    document.getElementById('auth-form').addEventListener('submit', (e) => {
+    // Auth Form (Sets session state on success)
+    document.getElementById('auth-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      sendRequest('/user', 'POST', {
-        screen_name: document.getElementById('auth-screenname').value,
+      const screenName = document.getElementById('auth-screenname').value;
+      const res = await sendRequest('/user', 'POST', {
+        screen_name: screenName,
         password: document.getElementById('auth-password').value
       });
+
+      if (res.ok) {
+        currentUser = screenName;
+        document.getElementById('auth-form').reset();
+        updateUI();
+      }
     });
 
-    document.getElementById('password-form').addEventListener('submit', (e) => {
+    // Change Password Form (Uses active session username)
+    document.getElementById('password-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      sendRequest('/user/password', 'PUT', {
-        screen_name: document.getElementById('pwd-screenname').value,
+      await sendRequest('/user/password', 'PUT', {
+        screen_name: currentUser,
         password: document.getElementById('pwd-newpassword').value
       });
+      document.getElementById('password-form').reset();
     });
 
-    document.getElementById('room-form').addEventListener('submit', (e) => {
+    // Create Room Form
+    document.getElementById('room-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      sendRequest('/chat/room/public', 'POST', {
+      await sendRequest('/chat/room/public', 'POST', {
         name: document.getElementById('room-name').value
       });
+      document.getElementById('room-form').reset();
     });
 
-    document.getElementById('delete-form').addEventListener('submit', (e) => {
+    // Delete Account Form (Clears session on success)
+    document.getElementById('delete-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      sendRequest('/user', 'DELETE', {
-        screen_name: document.getElementById('del-screenname').value
+      const res = await sendRequest('/user', 'DELETE', {
+        screen_name: currentUser
       });
+
+      if (res.ok) {
+        currentUser = null;
+        updateUI();
+      }
+    });
+
+    // Logout Action
+    document.getElementById('logout-btn').addEventListener('click', () => {
+      currentUser = null;
+      updateUI();
+      logResponse('Client', 'LOGOUT', '200', { message: 'Session cleared.' });
     });
   </script>
 </body>
