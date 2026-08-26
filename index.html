@@ -193,10 +193,20 @@ async function sendRequest(endpoint, method, payload) {
       body: JSON.stringify(payload)
     });
 
-    const data = await response.json();
+    // 1. Get raw text response first
+    const rawText = await response.text();
+    let data;
+
+    // 2. Safely parse JSON
+    try {
+      data = JSON.parse(rawText);
+    } catch (parseErr) {
+      // Server returned HTML or empty body instead of JSON
+      data = { rawResponse: rawText || '[Empty Body]' };
+    }
+
     logResponse(endpoint, method, response.status, data);
 
-    // Return status check handling 200 or 201 explicitly
     return {
       ok: response.status === 200 || response.status === 201,
       status: response.status,
