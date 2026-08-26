@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AIM Management Dashboard</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --card-bg: #ffffff;
+      --text: #1a202c;
+      --border: #e2e8f0;
+      --primary: #2563eb;
+      --danger: #dc2626;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    h2 { margin-top: 0; font-size: 1.25rem; }
+    .form-group {
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    input {
+      width: 100%;
+      padding: 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.danger { background: var(--danger); }
+    button:hover { opacity: 0.9; }
+    .log-container {
+      background: #0f172a;
+      color: #38bdf8;
+      font-family: monospace;
+      padding: 1rem;
+      border-radius: 6px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>API Dashboard</h1>
+
+  <!-- Create / Login User -->
+  <div class="card">
+    <h2>Create User / Login</h2>
+    <form id="auth-form">
+      <div class="form-group">
+        <label for="auth-screenname">Screen Name</label>
+        <input type="text" id="auth-screenname" required />
+      </div>
+      <div class="form-group">
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" required />
+      </div>
+      <button type="submit">Submit Request</button>
+    </form>
+  </div>
+
+  <!-- Change Password -->
+  <div class="card">
+    <h2>Change Password</h2>
+    <form id="password-form">
+      <div class="form-group">
+        <label for="pwd-screenname">Screen Name</label>
+        <input type="text" id="pwd-screenname" required />
+      </div>
+      <div class="form-group">
+        <label for="pwd-newpassword">New Password</label>
+        <input type="password" id="pwd-newpassword" required />
+      </div>
+      <button type="submit">Update Password</button>
+    </form>
+  </div>
+
+  <!-- Create Public Chat Room -->
+  <div class="card">
+    <h2>Create Public Chat Room</h2>
+    <form id="room-form">
+      <div class="form-group">
+        <label for="room-name">Room Name</label>
+        <input type="text" id="room-name" required />
+      </div>
+      <button type="submit">Create Room</button>
+    </form>
+  </div>
+
+  <!-- Delete User -->
+  <div class="card">
+    <h2>Delete User</h2>
+    <form id="delete-form">
+      <div class="form-group">
+        <label for="del-screenname">Screen Name</label>
+        <input type="text" id="del-screenname" required />
+      </div>
+      <button type="submit" class="danger">Delete User Account</button>
+    </form>
+  </div>
+
+  <!-- Response Log Console -->
+  <div class="card">
+    <h2>Response Console</h2>
+    <div id="output" class="log-container">Ready. Output will appear here...</div>
+  </div>
+
+  <script>
+    const API_BASE = 'https://aim.nodemixaholic.com';
+    const outputEl = document.getElementById('output');
+
+    function logResponse(endpoint, method, status, data) {
+      const timestamp = new Date().toLocaleTimeString();
+      outputEl.textContent = `[${timestamp}] ${method} ${endpoint} → Status: ${status}\nResponse: ${JSON.stringify(data, null, 2)}\n\n` + outputEl.textContent;
+    }
+
+    async function sendRequest(endpoint, method, payload) {
+      try {
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include', // Ensures session cookies are sent for protected endpoints
+          body: JSON.stringify(payload)
+        });
+
+        let data;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          data = await response.text();
+        }
+
+        logResponse(endpoint, method, response.status, data);
+      } catch (err) {
+        logResponse(endpoint, method, 'ERROR', err.message);
+      }
+    }
+
+    // Form Event Listeners
+    document.getElementById('auth-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      sendRequest('/user', 'POST', {
+        screen_name: document.getElementById('auth-screenname').value,
+        password: document.getElementById('auth-password').value
+      });
+    });
+
+    document.getElementById('password-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      sendRequest('/user/password', 'PUT', {
+        screen_name: document.getElementById('pwd-screenname').value,
+        password: document.getElementById('pwd-newpassword').value
+      });
+    });
+
+    document.getElementById('room-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      sendRequest('/chat/room/public', 'POST', {
+        name: document.getElementById('room-name').value
+      });
+    });
+
+    document.getElementById('delete-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      sendRequest('/user', 'DELETE', {
+        screen_name: document.getElementById('del-screenname').value
+      });
+    });
+  </script>
+</body>
+</html>
