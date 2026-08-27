@@ -1,6 +1,6 @@
 <?php
 // Set target API base URL
-$target_base = 'https://aim.nodemixaholic.com';
+$target_base = 'https://astolfo.saga-kettle.ts.net';
 
 // 1. Capture client headers and allow origin dynamically
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '*';
